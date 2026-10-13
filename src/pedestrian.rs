@@ -35,8 +35,6 @@ pub async fn publish_pointer(
             continue;
         }
 
-        println!("~~~ 1");
-
         // Ok(None) = accepted, Ok(Some(_)) = someone wrote a newer value first
         if rc
             .set_dht_value(board.clone(), ValueSubkey::from(slot), bytes.clone(), None)
@@ -45,8 +43,6 @@ pub async fn publish_pointer(
         {
             continue; // lost the race, try the next slot
         }
-
-        println!("~~~ 2");
 
         // Verify that our write is the one that stuck
         let back = rc
