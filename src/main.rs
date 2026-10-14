@@ -82,7 +82,7 @@ async fn main() -> Result<(), Error> {
 
         tokio::signal::ctrl_c().await?;
 
-        return Ok(());
+        Ok(())
     })
     .await;
 

@@ -19,6 +19,7 @@ pub struct RideRequest {
     pub max_price_cents: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct PublishedRequest {
     pub request_key: RecordKey,
@@ -81,7 +82,7 @@ pub async fn publish_request(
     })
 }
 
-pub async fn find_requests(rc: &RoutingContext, lat: f64, lng: f64) -> Result<()> {
+pub async fn find_requests(rc: &RoutingContext, lat: f64, lng: f64) -> Result<Vec<Pointer>> {
     let driver_cell = cell_for(lat, lng)?;
     let neighbour_cells = scan_cells(driver_cell);
 
@@ -93,10 +94,8 @@ pub async fn find_requests(rc: &RoutingContext, lat: f64, lng: f64) -> Result<()
     let mut pointers: Vec<Pointer> = vec![];
 
     for cell in neighbour_cells.iter() {
-        println!("scanning cell # {:?}", cell);
         for shard in 0..SHARDS {
             let kp = board_keypair(*cell, time_bucket(now), shard)?;
-            println!("key {:?}", kp.key());
             if let Ok(dht_key) = open_board(rc, &kp).await {
                 let pts = read_pointers(rc, &dht_key.key(), BOARD_SLOTS).await;
                 pointers = [pointers, pts].concat();
@@ -104,11 +103,5 @@ pub async fn find_requests(rc: &RoutingContext, lat: f64, lng: f64) -> Result<()
         }
     }
 
-    println!("finished");
-
-    for p in pointers.iter() {
-        println!("poiinter : {:?}", p);
-    }
-
-    Ok(())
+    Ok(pointers)
 }
