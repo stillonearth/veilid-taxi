@@ -11,7 +11,7 @@ use veilid_core::{
 const DOMAIN: &str = "mytaxi/v1/board";
 const BUCKET_SECS: u64 = 15 * 60;
 const H3_RES: Resolution = Resolution::Eight;
-pub const BOARD_SLOTS: u16 = 64;
+pub const BOARD_SLOTS: u16 = 8;
 
 pub fn cell_for(lat: f64, lng: f64) -> Result<CellIndex> {
     Ok(LatLng::new(lat, lng)?.to_cell(H3_RES))
@@ -48,7 +48,7 @@ pub fn board_keypair(cell: CellIndex, bucket: u64, shard: u8) -> Result<KeyPair>
 
 /// Cells to scan as a driver: own cell plus the ring of neighbours.
 pub fn scan_cells(center: CellIndex) -> Vec<CellIndex> {
-    center.grid_disk::<Vec<_>>(1)
+    center.grid_disk::<Vec<_>>(0)
 }
 
 /// Create the board, or open it if someone else already did.
@@ -70,10 +70,8 @@ pub async fn ensure_board(rc: &RoutingContext, kp: &KeyPair) -> Result<DHTRecord
     }
 }
 
-pub fn now_bucket() -> u64 {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    time_bucket(secs)
+pub async fn open_board(rc: &RoutingContext, kp: &KeyPair) -> Result<DHTRecordDescriptor> {
+    let schema = DHTSchema::dflt(BOARD_SLOTS)?;
+    let key = rc.api().get_dht_record_key(schema, kp.key(), None).await?;
+    Ok(rc.open_dht_record(key, Some(kp.clone())).await?)
 }

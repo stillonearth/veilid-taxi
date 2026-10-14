@@ -5,12 +5,11 @@ mod veilid;
 
 use anyhow::{Error, Result};
 use clap::Parser;
-use rand;
 
-use veilid_core::{VeilidConfig, VeilidConfigProtectedStore, VeilidConfigTableStore, VeilidUpdate};
+use veilid_core::{VeilidConfig, VeilidConfigProtectedStore, VeilidConfigTableStore};
 
 use crate::{
-    board::BOARD_SLOTS,
+    ride_request::find_requests,
     veilid::{update_callback, veilid_api_scope},
 };
 
@@ -18,6 +17,9 @@ use crate::{
 struct Args {
     #[arg(long)]
     pedestrian: bool,
+
+    #[arg(long)]
+    driver: bool,
 
     #[arg(long)]
     longitude: f64,
@@ -42,8 +44,6 @@ async fn main() -> Result<(), Error> {
         namespace: "veilid-taxi".into(),
 
         protected_store: VeilidConfigProtectedStore {
-            // IMPORTANT: don't do this in production
-            // This avoids prompting for a password and is insecure
             always_use_insecure_storage: true,
             directory: exe_dir
                 .join(".veilid/protected_store")
@@ -61,25 +61,30 @@ async fn main() -> Result<(), Error> {
         ..Default::default()
     };
 
-    if args.pedestrian {
-        println!("about to publish a request");
+    if !(args.pedestrian || args.driver) {
+        return Ok(());
+    }
 
-        let _ = veilid_api_scope(update_callback, config, |veilid_api| async move {
-            let rc = veilid_api.routing_context()?;
+    let _ = veilid_api_scope(update_callback, config, |veilid_api| async move {
+        let rc = veilid_api.routing_context()?;
 
+        if args.pedestrian {
             let published_request =
-                ride_request::publish_request(&rc, args.latitude, args.longitude, 100)
-                    .await
-                    .unwrap();
+                ride_request::publish_request(&rc, args.latitude, args.longitude, 100).await?;
 
             println!("request published: {:?}", published_request);
+        }
 
-            tokio::signal::ctrl_c().await?;
+        if args.driver {
+            println!("finding pedestrian requests");
+            find_requests(&rc, args.latitude, args.longitude).await?;
+        }
 
-            Ok(())
-        })
-        .await;
-    }
+        tokio::signal::ctrl_c().await?;
+
+        return Ok(());
+    })
+    .await;
 
     Ok(())
 }
