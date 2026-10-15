@@ -51,23 +51,21 @@ pub fn scan_cells(center: CellIndex) -> Vec<CellIndex> {
     center.grid_disk::<Vec<_>>(0)
 }
 
-/// Create the board, or open it if someone else already did.
+/// Create the board if needed and open it with its deterministic, unencrypted key.
+///
+/// create_dht_record always attaches a random encryption key, so values written
+/// through the descriptor it returns would be unreadable for drivers. The opaque
+/// part of the key depends only on owner + schema, so we create the record (if it
+/// doesn't exist locally yet), close it, and reopen it without an encryption key.
 pub async fn ensure_board(rc: &RoutingContext, kp: &KeyPair) -> Result<DHTRecordDescriptor> {
     let schema = DHTSchema::dflt(BOARD_SLOTS)?;
-    match rc
-        .create_dht_record(CRYPTO_KIND_VLD0, schema.clone(), Some(kp.clone()))
+    if let Ok(desc) = rc
+        .create_dht_record(CRYPTO_KIND_VLD0, schema, Some(kp.clone()))
         .await
     {
-        Ok(desc) => Ok(desc),
-        Err(_) => {
-            // Record already exists: compute its key and open with the shared writer.
-            // get_dht_record_key appears in Veilid's tests and WASM bindings, but I have
-            // not confirmed the Rust signature. Check docs.rs for your version.
-
-            let key = rc.api().get_dht_record_key(schema, kp.key(), None).await?;
-            Ok(rc.open_dht_record(key, Some(kp.clone())).await?)
-        }
+        rc.close_dht_record(desc.key()).await?;
     }
+    open_board(rc, kp).await
 }
 
 pub async fn open_board(rc: &RoutingContext, kp: &KeyPair) -> Result<DHTRecordDescriptor> {

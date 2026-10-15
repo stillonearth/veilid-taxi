@@ -6,7 +6,40 @@ use tokio::time::sleep;
 use tracing::info;
 use veilid_core::AttachmentState::*;
 use veilid_core::VeilidUpdate::Network;
-use veilid_core::{api_startup, VeilidAPI, VeilidConfig, VeilidUpdate};
+use veilid_core::{
+    api_startup, VeilidAPI, VeilidConfig, VeilidConfigProtectedStore, VeilidConfigTableStore,
+    VeilidUpdate,
+};
+
+/// Veilid config with storage next to the executable, under `.veilid/<name>`,
+/// so different binaries don't share (and lock) the same stores.
+pub fn app_config(name: &str) -> VeilidConfig {
+    let exe_dir = std::env::current_exe()
+        .map(|x| x.parent().map(|p| p.to_owned()))
+        .ok()
+        .flatten()
+        .unwrap_or(".".into());
+    let store_dir = exe_dir.join(".veilid").join(name);
+
+    VeilidConfig {
+        program_name: name.into(),
+        namespace: "veilid-taxi".into(),
+
+        protected_store: VeilidConfigProtectedStore {
+            always_use_insecure_storage: true,
+            directory: store_dir
+                .join("protected_store")
+                .to_string_lossy()
+                .to_string(),
+            ..Default::default()
+        },
+        table_store: VeilidConfigTableStore {
+            directory: store_dir.join("table_store").to_string_lossy().to_string(),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
 
 async fn wait_for_attached(api: &VeilidAPI) -> Result<()> {
     info!("Awaiting attachment");
