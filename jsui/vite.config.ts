@@ -16,5 +16,14 @@ export default defineConfig({
 			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
 			adapter: adapter()
 		})
-	]
+	],
+	server: {
+		proxy: {
+			// veilid-taxi-server REST API (its --listen address)
+			'/api': {
+				target: 'http://127.0.0.1:3000',
+				rewrite: (path) => path.replace(/^\/api/, '')
+			}
+		}
+	}
 });

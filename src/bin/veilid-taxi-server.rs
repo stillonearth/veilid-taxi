@@ -10,7 +10,7 @@ use veilid_core::RoutingContext;
 
 use veilid_taxi::{
     pedestrian::Pointer,
-    ride_request::{find_requests, publish_request},
+    ride_request::{find_requests, publish_request, RideRequest},
     veilid::{app_config, update_callback, veilid_api_scope},
 };
 
@@ -75,7 +75,7 @@ async fn create_request(
 async fn list_requests(
     State(rc): State<RoutingContext>,
     Query(loc): Query<Location>,
-) -> Result<Json<Vec<Pointer>>, ApiError> {
+) -> Result<Json<Vec<(RideRequest, Vec<u8>)>>, ApiError> {
     let pointers = find_requests(&rc, loc.latitude, loc.longitude)
         .await
         .map_err(internal)?;

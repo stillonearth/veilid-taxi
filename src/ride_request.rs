@@ -6,7 +6,8 @@ use crate::{
     board::{
         board_keypair, cell_for, ensure_board, open_board, scan_cells, time_bucket, BOARD_SLOTS,
     },
-    pedestrian::{publish_pointer, read_pointers, Pointer},
+    pedestrian::{publish_pointer, read_pointers, read_request, Pointer},
+    ride_request,
 };
 
 const SHARDS: u8 = 1;
@@ -68,21 +69,25 @@ pub async fn publish_request(
     let board_key = ensure_board(rc, &kp).await?.key();
 
     let ptr = Pointer {
-        request_key: request_key.to_string(), // full key, parsed back by the driver
+        request_key: request_key.clone(), // full key, parsed back by the driver
         expires_at,
     };
     let slot = publish_pointer(rc, &board_key, BOARD_SLOTS, &ptr, now).await?;
     rc.close_dht_record(board_key.clone()).await?;
 
     Ok(PublishedRequest {
-        request_key,
+        request_key: request_key.clone(),
         route_id: route.route_id,
         board_key,
         slot,
     })
 }
 
-pub async fn find_requests(rc: &RoutingContext, lat: f64, lng: f64) -> Result<Vec<Pointer>> {
+pub async fn find_requests(
+    rc: &RoutingContext,
+    lat: f64,
+    lng: f64,
+) -> Result<Vec<(RideRequest, Vec<u8>)>> {
     let driver_cell = cell_for(lat, lng)?;
     let neighbour_cells = scan_cells(driver_cell);
 
@@ -92,6 +97,7 @@ pub async fn find_requests(rc: &RoutingContext, lat: f64, lng: f64) -> Result<Ve
         .as_secs();
 
     let mut pointers: Vec<Pointer> = vec![];
+    let mut ride_requests: Vec<(RideRequest, Vec<u8>)> = vec![];
 
     for cell in neighbour_cells.iter() {
         for shard in 0..SHARDS {
@@ -103,5 +109,13 @@ pub async fn find_requests(rc: &RoutingContext, lat: f64, lng: f64) -> Result<Ve
         }
     }
 
-    Ok(pointers)
+    for pointer in pointers.iter() {
+        if let Ok((ride_request, route_blob)) =
+            read_request(rc, RecordKey::from(pointer.request_key.clone())).await
+        {
+            ride_requests.push((ride_request, route_blob));
+        }
+    }
+
+    Ok(ride_requests)
 }

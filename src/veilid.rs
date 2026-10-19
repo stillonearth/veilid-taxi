@@ -100,9 +100,9 @@ pub async fn veilid_api_scope<'a, F: Future<Output = Result<T, Box<dyn std::erro
     wait_for_public_internet_ready(&veilid_api).await?;
 
     wait_for_network_start(&veilid_api).await?;
-    println!("veilid network started");
+    info!("veilid network started");
     wait_for_attached(&veilid_api).await?;
-    println!("veilid attached");
+    info!("veilid attached");
 
     // Operate the Veilid node inside a scope
     let res = scope(veilid_api.clone()).await;
@@ -119,12 +119,12 @@ pub fn update_callback(update: VeilidUpdate) {
         VeilidUpdate::Log(_veilid_log) => {}
         VeilidUpdate::AppMessage(veilid_app_message) => {
             let msg = String::from_utf8_lossy(veilid_app_message.message());
-            println!("AppMessage received: {msg}");
+            info!("AppMessage received: {msg}");
         }
         VeilidUpdate::AppCall(_veilid_app_call) => {}
         VeilidUpdate::Attachment(_veilid_state_attachment) => {}
         Network(msg) => {
-            println!(
+            info!(
                 "Network: Node Ids: {}, Peers {}, bytes/sec [{} up] [{} down]",
                 if msg.node_ids.is_empty() {
                     "(none assigned)".to_string()
@@ -142,9 +142,7 @@ pub fn update_callback(update: VeilidUpdate) {
         }
         VeilidUpdate::Config(_veilid_state_config) => {}
         VeilidUpdate::RouteChange(veilid_route_change) => {
-            // XXX: If this happens, the route is dead, and a new one should be generated and
-            // exchanged. This will no longer be necessary after DHT Route Autopublish is implemented in veilid-core v0.6.0
-            println!("{veilid_route_change:?}");
+            info!("{veilid_route_change:?}");
         }
         VeilidUpdate::ValueChange(_veilid_value_change) => {}
         VeilidUpdate::Shutdown => {}
