@@ -1,9 +1,34 @@
-use anyhow::{anyhow, Result};
+use std::default;
+
+use anyhow::Result;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use veilid_core::{RecordKey, RoutingContext, ValueSubkey};
+use veilid_core::{DHTSchema, RecordKey, RouteId, RoutingContext, ValueSubkey, CRYPTO_KIND_VLD0};
 
-use crate::ride_request::RideRequest;
+use crate::board::{
+    board_keypair, cell_for, ensure_board, time_bucket, BOARD_SLOTS, POINTER_TTL_SECS, SHARDS,
+};
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct PedestianRideRequest {
+    #[serde(skip_deserializing)]
+    pub request_key: String,
+    #[serde(skip_deserializing)]
+    pub route_blob: Vec<u8>,
+
+    pub cell: u64,
+    pub expires_at: u64,
+    pub max_price_cents: u32,
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct PublishedPedestrianRequest {
+    pub request_key: RecordKey,
+    pub route_id: RouteId,
+    pub board_key: RecordKey,
+    pub slot: u16,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Pointer {
@@ -18,12 +43,12 @@ fn is_free(raw: Option<&[u8]>, now: u64) -> bool {
     }
 }
 
-fn read_pointer(raw: Option<&[u8]>) -> Option<Pointer> {
+pub fn deserealize_pointer(raw: Option<&[u8]>) -> Option<Pointer> {
     raw.and_then(|b| serde_json::from_slice::<Pointer>(b).ok())
 }
 
-fn read_ride_request(raw: Option<&[u8]>) -> Option<RideRequest> {
-    raw.and_then(|b| serde_json::from_slice::<RideRequest>(b).ok())
+pub fn read_ride_request(raw: Option<&[u8]>) -> Option<PedestianRideRequest> {
+    raw.and_then(|b| serde_json::from_slice::<PedestianRideRequest>(b).ok())
 }
 
 pub async fn publish_pointer(
@@ -66,48 +91,58 @@ pub async fn publish_pointer(
     anyhow::bail!("no free slot on board")
 }
 
-pub async fn read_pointers(rc: &RoutingContext, board: &RecordKey, slots: u16) -> Vec<Pointer> {
-    let mut pointers: Vec<Pointer> = vec![];
-
-    for slot in 0..slots {
-        if let Ok(cur) = rc
-            .get_dht_value(board.clone(), ValueSubkey::from(slot), true)
-            .await
-        {
-            let data = cur.as_ref().map(|v| v.data());
-            if let Some(pointer) = read_pointer(data) {
-                pointers.push(pointer);
-            }
-        }
-    }
-    pointers
-}
-
-pub async fn read_request(
+pub async fn publish_request(
     rc: &RoutingContext,
-    request_key: RecordKey,
-) -> Result<(RideRequest, Vec<u8>)> {
-    let _ = rc.open_dht_record(request_key.clone(), None).await?;
-    let result = read_request_values(rc, &request_key).await;
-    let _ = rc.close_dht_record(request_key).await;
-    result
-}
+    lat: f64,
+    lng: f64,
+    max_price_cents: u32,
+) -> Result<PublishedPedestrianRequest> {
+    let api = rc.api();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let expires_at = now + POINTER_TTL_SECS;
 
-async fn read_request_values(
-    rc: &RoutingContext,
-    request_key: &RecordKey,
-) -> Result<(RideRequest, Vec<u8>)> {
-    // force_refresh = true: a driver node has no local copy of the pedestrian's record
-    let details = rc
-        .get_dht_value(request_key.clone(), ValueSubkey::from(0u16), true)
+    // 1. Private route: where drivers send their offers
+    let route = api.new_private_route().await?;
+
+    // 2. Request record. Owner None: Veilid generates a throwaway owner keypair,
+    //    and the returned open record is writable by it.
+    let desc = rc
+        .create_dht_record(CRYPTO_KIND_VLD0, DHTSchema::dflt(2)?, None)
         .await?;
-    let ride_request = read_ride_request(details.as_ref().map(|v| v.data()))
-        .ok_or_else(|| anyhow!("request details missing or malformed"))?;
+    let request_key = desc.key(); // verify accessor name in your version
 
-    let route = rc
-        .get_dht_value(request_key.clone(), ValueSubkey::from(1u16), true)
-        .await?
-        .ok_or_else(|| anyhow!("request route blob missing"))?;
+    let cell = cell_for(lat, lng)?;
+    let details = PedestianRideRequest {
+        cell: u64::from(cell),
+        expires_at,
+        max_price_cents,
+        request_key: request_key.to_string(),
+        route_blob: vec![],
+    };
+    rc.set_dht_value(request_key.clone(), 0, serde_json::to_vec(&details)?, None)
+        .await?;
+    rc.set_dht_value(request_key.clone(), 1, route.blob.clone(), None)
+        .await?;
 
-    Ok((ride_request, route.data().to_vec()))
+    // 3. Board pointer, written only after the record is filled in
+    let shard = rand::random::<u8>() % SHARDS;
+    let kp = board_keypair(cell, time_bucket(now), shard)?;
+    let board_key = ensure_board(rc, &kp).await?.key();
+
+    let ptr = Pointer {
+        request_key: request_key.clone(),
+        expires_at,
+    };
+    let slot = publish_pointer(rc, &board_key, BOARD_SLOTS, &ptr, now).await?;
+    rc.close_dht_record(board_key.clone()).await?;
+
+    Ok(PublishedPedestrianRequest {
+        request_key: request_key.clone(),
+        route_id: route.route_id,
+        board_key,
+        slot,
+    })
 }

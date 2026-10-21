@@ -2,7 +2,8 @@ use anyhow::{Error, Result};
 use clap::Parser;
 
 use veilid_taxi::{
-    ride_request::{accept_request, find_requests, publish_request},
+    driver::{accept_request, find_requests},
+    pedestrian::publish_request,
     veilid::{app_config, update_callback, veilid_api_scope},
 };
 
@@ -43,8 +44,9 @@ async fn main() -> Result<(), Error> {
         let rc = veilid_api.routing_context()?;
 
         if args.pedestrian {
-            let published_request =
-                publish_request(&rc, args.latitude, args.longitude, 100).await?;
+            let published_request = publish_request(&rc, args.latitude, args.longitude, 100)
+                .await
+                .unwrap();
             println!("request published: {:?}", published_request);
             println!("waiting for drivers, ctrl-c to quit");
         }
@@ -55,15 +57,15 @@ async fn main() -> Result<(), Error> {
 
             println!("{} requests found", pointers.len());
 
-            for (i, (request, route)) in pointers.iter().enumerate() {
+            for (i, request) in pointers.iter().enumerate() {
                 println!("#{} {:?}", i + 1, request);
 
-                if args.accept {
-                    match accept_request(&rc, route.clone(), args.message.clone()).await {
-                        Ok(()) => println!("#{} accepted, sent {:?}", i + 1, args.message),
-                        Err(e) => println!("#{} accept failed: {e}", i + 1),
-                    }
-                }
+                // if args.accept {
+                //     match accept_request(&rc, route.clone(), args.message.clone()).await {
+                //         Ok(()) => println!("#{} accepted, sent {:?}", i + 1, args.message),
+                //         Err(e) => println!("#{} accept failed: {e}", i + 1),
+                //     }
+                // }
             }
         }
 

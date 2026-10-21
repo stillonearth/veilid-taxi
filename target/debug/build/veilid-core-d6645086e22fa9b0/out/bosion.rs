@@ -18,7 +18,7 @@
 			///
 			/// If git info is available, it also includes the git hash, short hash and commit date,
 			/// and swaps the build date for the commit date in the summary line.
-			pub const LONG_VERSION: &'static str = "0.5.7 (2026-10-15) +argon2 +async-std +backtrace +blake2 +blake3 +chacha20 +chacha20poly1305 +curve25519-dalek +debug-api +default-async-std +ed25519-dalek +enable-crypto-vld0 +hpke +rt-async-std +x25519-dalek\nbuild-date: 2026-10-15\nrelease: 0.5.7\nfeatures: argon2,async-std,backtrace,blake2,blake3,chacha20,chacha20poly1305,curve25519-dalek,debug-api,default-async-std,ed25519-dalek,enable-crypto-vld0,hpke,rt-async-std,x25519-dalek";
+			pub const LONG_VERSION: &'static str = "0.5.7 (2026-10-21) +argon2 +async-std +backtrace +blake2 +blake3 +chacha20 +chacha20poly1305 +curve25519-dalek +debug-api +default-async-std +ed25519-dalek +enable-crypto-vld0 +hpke +rt-async-std +x25519-dalek\nbuild-date: 2026-10-21\nrelease: 0.5.7\nfeatures: argon2,async-std,backtrace,blake2,blake3,chacha20,chacha20poly1305,curve25519-dalek,debug-api,default-async-std,ed25519-dalek,enable-crypto-vld0,hpke,rt-async-std,x25519-dalek";
 
 			/// The crate version, as reported by Cargo
 			///
@@ -42,7 +42,7 @@
 			/// This is the date that the crate was built, in the format `YYYY-MM-DD`. If the
 			/// environment variable `SOURCE_DATE_EPOCH` was set, it's used instead of the current
 			/// time, for [reproducible builds](https://reproducible-builds.org/).
-			pub const BUILD_DATE: &'static str = "2026-10-15";
+			pub const BUILD_DATE: &'static str = "2026-10-21";
 
 			/// The build datetime
 			///
@@ -50,7 +50,7 @@
 			/// `YYYY-MM-DD HH:MM:SS`. If the environment variable `SOURCE_DATE_EPOCH` was set, it's
 			/// used instead of the current time, for
 			/// [reproducible builds](https://reproducible-builds.org/).
-			pub const BUILD_DATETIME: &'static str = "2026-10-15 18:36:31";
+			pub const BUILD_DATETIME: &'static str = "2026-10-21 21:16:33";
 
 			
 

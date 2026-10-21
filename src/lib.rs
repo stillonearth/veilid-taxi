@@ -1,4 +1,4 @@
 pub mod board;
+pub mod driver;
 pub mod pedestrian;
-pub mod ride_request;
 pub mod veilid;

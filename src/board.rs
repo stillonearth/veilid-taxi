@@ -12,6 +12,8 @@ const DOMAIN: &str = "mytaxi/v1/board";
 const BUCKET_SECS: u64 = 15 * 60;
 const H3_RES: Resolution = Resolution::Eight;
 pub const BOARD_SLOTS: u16 = 8;
+pub const SHARDS: u8 = 1;
+pub const POINTER_TTL_SECS: u64 = 10 * 60;
 
 pub fn cell_for(lat: f64, lng: f64) -> Result<CellIndex> {
     Ok(LatLng::new(lat, lng)?.to_cell(H3_RES))

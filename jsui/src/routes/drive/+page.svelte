@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { acceptRequest, listRequests, toBase64, type Area, type FoundRequest } from '#lib/api.js';
+	import {
+		acceptRequest,
+		listRequests,
+		toBase64,
+		type AcceptedRequest,
+		type Area,
+		type RideRequest
+	} from '#lib/api.js';
 	import LocationInput from '#lib/LocationInput.svelte';
 
 	let latitude = $state(0);
@@ -7,10 +14,11 @@
 
 	let loading = $state(false);
 	let error = $state('');
-	let requests = $state<FoundRequest[] | null>(null);
-	let copied = $state<number | null>(null);
-	// Per-request accept state, keyed by list index
-	let accepting = $state<Record<number, 'sending' | 'sent' | string>>({});
+	let requests = $state<RideRequest[] | null>(null);
+	let copied = $state<string | null>(null);
+	// Per-request accept state, keyed by request key
+	let accepting = $state<Record<string, 'sending' | 'sent' | string>>({});
+	let accepted = $state<Record<string, AcceptedRequest>>({});
 	let now = $state(Date.now() / 1000);
 
 	$effect(() => {
@@ -19,7 +27,7 @@
 	});
 
 	let areas = $derived<Area[]>(
-		(requests ?? []).map(({ request }, i) => ({
+		(requests ?? []).map((request, i) => ({
 			cell: request.cell,
 			label: `#${i + 1} · ${formatPrice(request.max_price_cents)}`
 		}))
@@ -32,6 +40,7 @@
 		try {
 			requests = await listRequests(latitude, longitude);
 			accepting = {};
+			accepted = {};
 		} catch (e) {
 			error = (e as Error).message;
 		} finally {
@@ -39,19 +48,19 @@
 		}
 	}
 
-	async function copyRoute(i: number, blob: Uint8Array) {
+	async function copyRoute(id: string, blob: Uint8Array) {
 		await navigator.clipboard.writeText(toBase64(blob));
-		copied = i;
-		setTimeout(() => (copied = copied === i ? null : copied), 1500);
+		copied = id;
+		setTimeout(() => (copied = copied === id ? null : copied), 1500);
 	}
 
-	async function accept(i: number, blob: Uint8Array) {
-		accepting[i] = 'sending';
+	async function accept(key: string) {
+		accepting[key] = 'sending';
 		try {
-			await acceptRequest(blob, 'hello');
-			accepting[i] = 'sent';
+			accepted[key] = await acceptRequest(key, 'hello');
+			accepting[key] = 'sent';
 		} catch (e) {
-			accepting[i] = (e as Error).message;
+			accepting[key] = (e as Error).message;
 		}
 	}
 
@@ -82,7 +91,8 @@
 	<h2>{requests.length} request{requests.length === 1 ? '' : 's'} nearby</h2>
 	{#if requests.length}
 		<ul>
-			{#each requests as { request, route_blob }, i (i)}
+			{#each requests as request, i (request.request_key)}
+				{@const key = request.request_key}
 				<li class="card" class:expired={request.expires_at <= now}>
 					<div class="head">
 						<strong>#{i + 1}</strong>
@@ -90,32 +100,51 @@
 						<span class="ttl">{expiresIn(request.expires_at)}</span>
 					</div>
 					<dl>
+						<dt>Request</dt>
+						<dd class="mono">{key}</dd>
 						<dt>Cell</dt>
 						<dd class="mono">{request.cell}</dd>
 						<dt>Route</dt>
 						<dd>
-							{route_blob.length} bytes
-							<button type="button" class="secondary small" onclick={() => copyRoute(i, route_blob)}>
-								{copied === i ? 'Copied' : 'Copy base64'}
+							{request.route_blob.length} bytes
+							<button
+								type="button"
+								class="secondary small"
+								onclick={() => copyRoute(key, request.route_blob)}
+							>
+								{copied === key ? 'Copied' : 'Copy base64'}
 							</button>
 						</dd>
+						{#if accepted[key]}
+							<dt>Your route</dt>
+							<dd>
+								{accepted[key].driver_route.length} bytes
+								<button
+									type="button"
+									class="secondary small"
+									onclick={() => copyRoute(`${key}/driver`, accepted[key].driver_route)}
+								>
+									{copied === `${key}/driver` ? 'Copied' : 'Copy base64'}
+								</button>
+							</dd>
+						{/if}
 					</dl>
 					<div class="actions">
 						<button
 							type="button"
 							disabled={request.expires_at <= now ||
-								accepting[i] === 'sending' ||
-								accepting[i] === 'sent'}
-							onclick={() => accept(i, route_blob)}
+								accepting[key] === 'sending' ||
+								accepting[key] === 'sent'}
+							onclick={() => accept(key)}
 						>
-							{accepting[i] === 'sending'
+							{accepting[key] === 'sending'
 								? 'Sending…'
-								: accepting[i] === 'sent'
+								: accepting[key] === 'sent'
 									? 'Accepted'
 									: 'Accept request'}
 						</button>
-						{#if accepting[i] && accepting[i] !== 'sending' && accepting[i] !== 'sent'}
-							<span class="error">{accepting[i]}</span>
+						{#if accepting[key] && accepting[key] !== 'sending' && accepting[key] !== 'sent'}
+							<span class="error">{accepting[key]}</span>
 						{/if}
 					</div>
 				</li>

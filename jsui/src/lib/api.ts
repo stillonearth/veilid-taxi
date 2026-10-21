@@ -18,20 +18,23 @@ export interface CreatedRequest {
 }
 
 export interface RideRequest {
+	request_key: string; // DHT record holding the request
+	route_blob: Uint8Array; // pedestrian's private route, for sending offers
 	cell: string; // H3 cell as a hex string (u64 doesn't fit a JS number)
 	expires_at: number; // unix secs
 	max_price_cents: number;
+}
+
+export interface AcceptedRequest {
+	request_key: string;
+	driver_route: Uint8Array; // driver's private route, for the pedestrian to reply
+	pedestrian_route: Uint8Array;
 }
 
 /** An H3 cell to highlight on the map. */
 export interface Area {
 	cell: string; // H3 index, hex
 	label: string;
-}
-
-export interface FoundRequest {
-	request: RideRequest;
-	route_blob: Uint8Array; // pedestrian's private route, for sending offers
 }
 
 async function check(res: Response): Promise<Response> {
@@ -56,26 +59,37 @@ export async function createRequest(body: CreateRequest): Promise<CreatedRequest
 export async function listRequests(
 	latitude: number,
 	longitude: number
-): Promise<FoundRequest[]> {
+): Promise<RideRequest[]> {
 	const params = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude) });
 	const res = await fetch(`${API}/requests?${params}`);
 	// Quote the u64 cell before parsing so it isn't rounded to a float.
 	const text = (await (await check(res)).text()).replace(/"cell":(\d+)/g, '"cell":"$1"');
-	const rows: [RideRequest, number[]][] = JSON.parse(text);
-	return rows.map(([request, blob]) => ({
-		request: { ...request, cell: BigInt(request.cell).toString(16) },
-		route_blob: Uint8Array.from(blob)
+	const rows: (Omit<RideRequest, 'route_blob'> & { route_blob: number[] })[] = JSON.parse(text);
+	return rows.map((row) => ({
+		...row,
+		cell: BigInt(row.cell).toString(16),
+		route_blob: Uint8Array.from(row.route_blob)
 	}));
 }
 
-/** Accept a ride request as a driver: sends `message` to the pedestrian's private route. */
-export async function acceptRequest(routeBlob: Uint8Array, message: string): Promise<void> {
+/**
+ * Accept a ride request as a driver: sends `message` to the pedestrian's private route.
+ * The server looks the request up by key, so it must come from a prior `listRequests`.
+ */
+export async function acceptRequest(requestKey: string, message: string): Promise<AcceptedRequest> {
 	const res = await fetch(`${API}/requests/accept`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ route_blob: Array.from(routeBlob), message })
+		body: JSON.stringify({ request_key: requestKey, message })
 	});
-	await check(res);
+	const body: { request_key: string; driver_route: number[]; pedestrian_route: number[] } = await (
+		await check(res)
+	).json();
+	return {
+		request_key: body.request_key,
+		driver_route: Uint8Array.from(body.driver_route),
+		pedestrian_route: Uint8Array.from(body.pedestrian_route)
+	};
 }
 
 export function toBase64(bytes: Uint8Array): string {
