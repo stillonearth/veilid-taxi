@@ -3,10 +3,15 @@ use std::default;
 use anyhow::Result;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use veilid_core::{DHTSchema, RecordKey, RouteId, RoutingContext, ValueSubkey, CRYPTO_KIND_VLD0};
+use veilid_core::{
+    DHTSchema, RecordKey, RouteId, RoutingContext, Target, ValueSubkey, CRYPTO_KIND_VLD0,
+};
 
-use crate::board::{
-    board_keypair, cell_for, ensure_board, time_bucket, BOARD_SLOTS, POINTER_TTL_SECS, SHARDS,
+use crate::{
+    app::P2PTaxiMessage,
+    board::{
+        board_keypair, cell_for, ensure_board, time_bucket, BOARD_SLOTS, POINTER_TTL_SECS, SHARDS,
+    },
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -145,4 +150,40 @@ pub async fn publish_request(
         board_key,
         slot,
     })
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum PedestrianDecision {
+    Yes,
+    No,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DriverRideResponse {
+    pub pedestrian_ride_request: PedestianRideRequest,
+    pub decision: PedestrianDecision,
+    pub driver_route: Vec<u8>,
+}
+
+pub async fn respond_to_driver_ride_request(
+    rc: &RoutingContext,
+    driver_route: Vec<u8>,
+    pedestrian_ride_request: PedestianRideRequest,
+    decision: PedestrianDecision,
+) -> Result<DriverRideResponse> {
+    let api = rc.api();
+    let driver_route_id = api.import_remote_private_route(driver_route.clone())?;
+
+    let driver_ride_response = DriverRideResponse {
+        decision,
+        driver_route: driver_route.clone(),
+        pedestrian_ride_request,
+    };
+    let message = P2PTaxiMessage::DriverRideResponse(driver_ride_response.clone());
+    let serialized_message = serde_json::to_vec(&message)?;
+
+    rc.app_message(Target::RouteId(driver_route_id), serialized_message)
+        .await?;
+
+    Ok(driver_ride_response)
 }

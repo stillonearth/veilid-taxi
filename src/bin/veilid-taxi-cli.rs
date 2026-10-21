@@ -2,7 +2,8 @@ use anyhow::{Error, Result};
 use clap::Parser;
 
 use veilid_taxi::{
-    driver::{accept_request, find_requests},
+    app::P2PApp,
+    driver::{accept_pedestrian_ride_request, find_requests},
     pedestrian::publish_request,
     veilid::{app_config, update_callback, veilid_api_scope},
 };
@@ -39,6 +40,8 @@ async fn main() -> Result<(), Error> {
     }
 
     let config = app_config("veilid-taxi-cli");
+
+    // let app = P2PApp {};
 
     let _ = veilid_api_scope(update_callback, config, |veilid_api| async move {
         let rc = veilid_api.routing_context()?;

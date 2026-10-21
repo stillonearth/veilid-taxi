@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use veilid_core::RoutingContext;
 
 use veilid_taxi::{
-    driver::{accept_request, find_requests},
+    driver::{accept_pedestrian_ride_request, find_requests},
     pedestrian::{publish_request, PedestianRideRequest},
     veilid::{app_config, update_callback, veilid_api_scope},
 };
@@ -105,7 +105,7 @@ async fn accept_ride_request(
         .get(&body.request_key)
         .ok_or((StatusCode::NOT_FOUND, "unknown request_key".to_string()))?;
 
-    let driver_ride_request = accept_request(
+    let driver_ride_request = accept_pedestrian_ride_request(
         &state.rc,
         pedesrtian_ride_request.route_blob.clone(),
         pedesrtian_ride_request.clone(),
