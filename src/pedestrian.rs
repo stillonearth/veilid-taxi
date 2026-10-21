@@ -87,33 +87,27 @@ pub async fn read_request(
     rc: &RoutingContext,
     request_key: RecordKey,
 ) -> Result<(RideRequest, Vec<u8>)> {
-    let mut ride_request: Option<RideRequest> = None;
-    let mut route_blob: Option<Vec<u8>> = None;
+    let _ = rc.open_dht_record(request_key.clone(), None).await?;
+    let result = read_request_values(rc, &request_key).await;
+    let _ = rc.close_dht_record(request_key).await;
+    result
+}
 
-    if let Ok(details_data) = rc
-        .get_dht_value(request_key.clone(), ValueSubkey::from(0 as u16), true)
-        .await
-    {
-        let data = details_data.as_ref().map(|v| v.data());
-        ride_request = read_ride_request(data);
-    }
+async fn read_request_values(
+    rc: &RoutingContext,
+    request_key: &RecordKey,
+) -> Result<(RideRequest, Vec<u8>)> {
+    // force_refresh = true: a driver node has no local copy of the pedestrian's record
+    let details = rc
+        .get_dht_value(request_key.clone(), ValueSubkey::from(0u16), true)
+        .await?;
+    let ride_request = read_ride_request(details.as_ref().map(|v| v.data()))
+        .ok_or_else(|| anyhow!("request details missing or malformed"))?;
 
-    if let Ok(details_data) = rc
-        .get_dht_value(request_key.clone(), ValueSubkey::from(1 as u16), true)
-        .await
-    {
-        let data = details_data.as_ref().map(|v| v.data());
-        if data.is_some() {
-            route_blob = Some(data.unwrap().into());
-        }
-    }
+    let route = rc
+        .get_dht_value(request_key.clone(), ValueSubkey::from(1u16), true)
+        .await?
+        .ok_or_else(|| anyhow!("request route blob missing"))?;
 
-    if ride_request.is_some() && route_blob.is_some() {
-        let ride_request = ride_request.unwrap();
-        let route_blob = route_blob.unwrap();
-
-        return Ok((ride_request, route_blob));
-    }
-
-    Err(anyhow!("Operation failed"))
+    Ok((ride_request, route.data().to_vec()))
 }

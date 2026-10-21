@@ -37,8 +37,6 @@ async fn main() -> Result<(), Error> {
         if args.pedestrian {
             let published_request =
                 publish_request(&rc, args.latitude, args.longitude, 100).await?;
-
-            println!("request published: {:?}", published_request);
         }
 
         if args.driver {
@@ -47,8 +45,8 @@ async fn main() -> Result<(), Error> {
 
             println!("{} requests found", pointers.len());
 
-            for p in pointers.iter() {
-                println!("{:?}", p);
+            for (request, route) in pointers.iter() {
+                println!("{:?}", request);
             }
         }
 

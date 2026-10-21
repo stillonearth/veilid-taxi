@@ -7,13 +7,12 @@ use crate::{
         board_keypair, cell_for, ensure_board, open_board, scan_cells, time_bucket, BOARD_SLOTS,
     },
     pedestrian::{publish_pointer, read_pointers, read_request, Pointer},
-    ride_request,
 };
 
 const SHARDS: u8 = 1;
 const POINTER_TTL_SECS: u64 = 10 * 60;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct RideRequest {
     pub cell: u64, // H3 cell, coarse on purpose
     pub expires_at: u64,
