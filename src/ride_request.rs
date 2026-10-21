@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use veilid_core::{DHTSchema, RecordKey, RouteId, RoutingContext, CRYPTO_KIND_VLD0};
+use veilid_core::{DHTSchema, RecordKey, RouteId, RoutingContext, Target, CRYPTO_KIND_VLD0};
 
 use crate::{
     board::{
@@ -117,4 +117,16 @@ pub async fn find_requests(
     }
 
     Ok(ride_requests)
+}
+
+/// Accept a ride request as a driver: send `message` to the pedestrian's private route.
+pub async fn accept_request(
+    rc: &RoutingContext,
+    route_blob: Vec<u8>,
+    message: String,
+) -> Result<()> {
+    let route_id = rc.api().import_remote_private_route(route_blob)?;
+    rc.app_message(Target::RouteId(route_id), message.into_bytes())
+        .await?;
+    Ok(())
 }

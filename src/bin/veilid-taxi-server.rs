@@ -1,7 +1,7 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use clap::Parser;
@@ -10,7 +10,7 @@ use veilid_core::RoutingContext;
 
 use veilid_taxi::{
     pedestrian::Pointer,
-    ride_request::{find_requests, publish_request, RideRequest},
+    ride_request::{accept_request, find_requests, publish_request, RideRequest},
     veilid::{app_config, update_callback, veilid_api_scope},
 };
 
@@ -35,6 +35,12 @@ struct CreatedRequest {
     route_id: String,
     board_key: String,
     slot: u16,
+}
+
+#[derive(Deserialize)]
+struct AcceptRideRequest {
+    route_blob: Vec<u8>,
+    message: String,
 }
 
 #[derive(Deserialize)]
@@ -71,6 +77,17 @@ async fn create_request(
     }))
 }
 
+/// POST /requests/accept: accept a ride request as a driver and message the pedestrian
+async fn accept_ride_request(
+    State(rc): State<RoutingContext>,
+    Json(body): Json<AcceptRideRequest>,
+) -> Result<StatusCode, ApiError> {
+    accept_request(&rc, body.route_blob, body.message)
+        .await
+        .map_err(internal)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// GET /requests?latitude=..&longitude=..: list ride requests near a location
 async fn list_requests(
     State(rc): State<RoutingContext>,
@@ -100,6 +117,7 @@ async fn main() -> anyhow::Result<()> {
 async fn serve(rc: RoutingContext, addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/requests", get(list_requests).post(create_request))
+        .route("/requests/accept", post(accept_ride_request))
         .with_state(rc);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

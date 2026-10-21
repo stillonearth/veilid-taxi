@@ -119,7 +119,9 @@ pub fn update_callback(update: VeilidUpdate) {
         VeilidUpdate::Log(_veilid_log) => {}
         VeilidUpdate::AppMessage(veilid_app_message) => {
             let msg = String::from_utf8_lossy(veilid_app_message.message());
-            info!("AppMessage received: {msg}");
+            // println, not info!: no tracing subscriber is installed, and the
+            // pedestrian needs to see driver messages
+            println!("AppMessage received: {msg}");
         }
         VeilidUpdate::AppCall(_veilid_app_call) => {}
         VeilidUpdate::Attachment(_veilid_state_attachment) => {}

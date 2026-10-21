@@ -68,6 +68,16 @@ export async function listRequests(
 	}));
 }
 
+/** Accept a ride request as a driver: sends `message` to the pedestrian's private route. */
+export async function acceptRequest(routeBlob: Uint8Array, message: string): Promise<void> {
+	const res = await fetch(`${API}/requests/accept`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ route_blob: Array.from(routeBlob), message })
+	});
+	await check(res);
+}
+
 export function toBase64(bytes: Uint8Array): string {
 	return btoa(String.fromCharCode(...bytes));
 }

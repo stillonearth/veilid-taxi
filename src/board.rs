@@ -52,11 +52,6 @@ pub fn scan_cells(center: CellIndex) -> Vec<CellIndex> {
 }
 
 /// Create the board if needed and open it with its deterministic, unencrypted key.
-///
-/// create_dht_record always attaches a random encryption key, so values written
-/// through the descriptor it returns would be unreadable for drivers. The opaque
-/// part of the key depends only on owner + schema, so we create the record (if it
-/// doesn't exist locally yet), close it, and reopen it without an encryption key.
 pub async fn ensure_board(rc: &RoutingContext, kp: &KeyPair) -> Result<DHTRecordDescriptor> {
     let schema = DHTSchema::dflt(BOARD_SLOTS)?;
     if let Ok(desc) = rc

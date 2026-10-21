@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { listRequests, toBase64, type Area, type FoundRequest } from '#lib/api.js';
+	import { acceptRequest, listRequests, toBase64, type Area, type FoundRequest } from '#lib/api.js';
 	import LocationInput from '#lib/LocationInput.svelte';
 
 	let latitude = $state(0);
@@ -9,6 +9,8 @@
 	let error = $state('');
 	let requests = $state<FoundRequest[] | null>(null);
 	let copied = $state<number | null>(null);
+	// Per-request accept state, keyed by list index
+	let accepting = $state<Record<number, 'sending' | 'sent' | string>>({});
 	let now = $state(Date.now() / 1000);
 
 	$effect(() => {
@@ -29,6 +31,7 @@
 		error = '';
 		try {
 			requests = await listRequests(latitude, longitude);
+			accepting = {};
 		} catch (e) {
 			error = (e as Error).message;
 		} finally {
@@ -40,6 +43,16 @@
 		await navigator.clipboard.writeText(toBase64(blob));
 		copied = i;
 		setTimeout(() => (copied = copied === i ? null : copied), 1500);
+	}
+
+	async function accept(i: number, blob: Uint8Array) {
+		accepting[i] = 'sending';
+		try {
+			await acceptRequest(blob, 'hello');
+			accepting[i] = 'sent';
+		} catch (e) {
+			accepting[i] = (e as Error).message;
+		}
 	}
 
 	function formatPrice(cents: number): string {
@@ -87,6 +100,24 @@
 							</button>
 						</dd>
 					</dl>
+					<div class="actions">
+						<button
+							type="button"
+							disabled={request.expires_at <= now ||
+								accepting[i] === 'sending' ||
+								accepting[i] === 'sent'}
+							onclick={() => accept(i, route_blob)}
+						>
+							{accepting[i] === 'sending'
+								? 'Sending…'
+								: accepting[i] === 'sent'
+									? 'Accepted'
+									: 'Accept request'}
+						</button>
+						{#if accepting[i] && accepting[i] !== 'sending' && accepting[i] !== 'sent'}
+							<span class="error">{accepting[i]}</span>
+						{/if}
+					</div>
 				</li>
 			{/each}
 		</ul>
@@ -150,6 +181,11 @@
 		padding: 0.2rem 0.6rem;
 		font-size: 0.8rem;
 		margin-left: 0.5rem;
+	}
+	.actions {
+		display: flex;
+		gap: 0.75rem;
+		align-items: center;
 	}
 	.muted {
 		color: var(--muted);
