@@ -1,9 +1,24 @@
 <script lang="ts">
 	import favicon from '#lib/assets/favicon.svg';
 	import { page } from '$app/state';
+	import {establishWSConnection} from '#lib/api.js';
 	import type { LayoutProps } from './$types';
+	import { onMount } from 'svelte'
 
 	let { children }: LayoutProps = $props();
+
+	onMount(() => {
+  	  var socket = establishWSConnection();
+
+     console.log("here");
+
+  	  socket.onmessage = function(event) {
+        alert("Получены данные " + event.data);
+     };
+	});
+
+
+
 </script>
 
 <svelte:head>

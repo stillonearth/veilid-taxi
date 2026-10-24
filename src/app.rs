@@ -122,16 +122,18 @@ impl P2PApp {
                 {
                     match p2p_taxi_app_message {
                         P2PTaxiMessage::DriverRideRequest(driver_ride_request) => {
-                            self.app_state
+                            let _ = self
+                                .app_state
                                 .send_driver_ride_request
-                                .send(driver_ride_request)
-                                .unwrap();
+                                .send_async(driver_ride_request)
+                                .await;
                         }
                         P2PTaxiMessage::DriverRideResponse(driver_ride_response) => {
-                            self.app_state
+                            let _ = self
+                                .app_state
                                 .send_driver_ride_response
-                                .send(driver_ride_response)
-                                .unwrap();
+                                .send_async(driver_ride_response)
+                                .await;
                         }
                     }
                 }

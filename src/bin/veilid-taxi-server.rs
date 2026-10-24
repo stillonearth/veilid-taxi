@@ -172,6 +172,11 @@ async fn ws_handler(
 
 /// Actual websocket statemachine (one will be spawned per connection)
 async fn handle_socket(mut socket: WebSocket, who: SocketAddr, p2p_app_state: P2PAppState) {
+    socket
+        .send(axum::extract::ws::Message::Text("POCKEMON PICKACHU".into()))
+        .await
+        .unwrap();
+
     loop {
         tokio::select! {
             Ok(ride_request) = p2p_app_state.on_driver_ride_request.recv_async() => {
@@ -220,10 +225,13 @@ async fn serve(state: WebAppState, addr: &str) -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     println!("REST API listening on http://{addr}");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async {
+        let _ = tokio::signal::ctrl_c().await;
+    })
+    .await?;
     Ok(())
 }
