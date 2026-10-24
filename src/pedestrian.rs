@@ -1,5 +1,3 @@
-use std::default;
-
 use anyhow::Result;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
@@ -16,9 +14,9 @@ use crate::{
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PedestianRideRequest {
-    #[serde(skip_deserializing)]
+    #[serde(default)]
     pub request_key: String,
-    #[serde(skip_deserializing)]
+    #[serde(default)]
     pub route_blob: Vec<u8>,
 
     pub cell: u64,

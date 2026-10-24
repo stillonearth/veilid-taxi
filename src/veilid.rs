@@ -3,7 +3,6 @@ use anyhow::{Error, Result};
 use std::time::Duration;
 use std::{future::Future, sync::Arc};
 use tokio::time::sleep;
-use tracing::info;
 use veilid_core::AttachmentState::*;
 use veilid_core::VeilidUpdate::Network;
 use veilid_core::{
@@ -41,13 +40,13 @@ pub fn app_config(name: &str) -> VeilidConfig {
     }
 }
 
-async fn wait_for_attached(api: &VeilidAPI) -> Result<()> {
-    info!("Awaiting attachment");
+pub async fn wait_for_attached(api: &VeilidAPI) -> Result<()> {
+    println!("Awaiting attachment");
     loop {
         let state = api.get_state().await?;
         match state.attachment.state {
             AttachedWeak | AttachedFair | AttachedGood | AttachedStrong | AttachedFull => {
-                info!("Awaiting attachment, done");
+                println!("Awaiting attachment, done");
                 return Ok(());
             }
             _ => (),
@@ -56,12 +55,12 @@ async fn wait_for_attached(api: &VeilidAPI) -> Result<()> {
     }
 }
 
-async fn wait_for_network_start(api: &VeilidAPI) -> Result<(), Error> {
-    info!("awaiting network initialization");
+pub async fn wait_for_network_start(api: &VeilidAPI) -> Result<(), Error> {
+    println!("awaiting network initialization");
     loop {
         let vs = api.get_state().await?;
         if vs.network.started && !vs.network.peers.is_empty() {
-            info!(
+            println!(
                 "Awaiting network initialization, done ({} peer(s))",
                 vs.network.peers.len()
             );
@@ -71,8 +70,8 @@ async fn wait_for_network_start(api: &VeilidAPI) -> Result<(), Error> {
     }
 }
 
-async fn wait_for_public_internet_ready(api: &VeilidAPI) -> Result<(), Error> {
-    info!("Awaiting 'public_internet_ready'");
+pub async fn wait_for_public_internet_ready(api: &VeilidAPI) -> Result<(), Error> {
+    println!("Awaiting 'public_internet_ready'");
     loop {
         let state = api.get_state().await?;
         if state.attachment.public_internet_ready {
@@ -81,7 +80,7 @@ async fn wait_for_public_internet_ready(api: &VeilidAPI) -> Result<(), Error> {
         sleep(Duration::from_secs(5)).await;
     }
 
-    info!("Awaiting 'public_internet_ready', done");
+    println!("Awaiting 'public_internet_ready', done");
     Ok(())
 }
 
@@ -100,9 +99,9 @@ pub async fn veilid_api_scope<'a, F: Future<Output = Result<T, Box<dyn std::erro
     wait_for_public_internet_ready(&veilid_api).await?;
 
     wait_for_network_start(&veilid_api).await?;
-    info!("veilid network started");
+    println!("veilid network started");
     wait_for_attached(&veilid_api).await?;
-    info!("veilid attached");
+    println!("veilid attached");
 
     // Operate the Veilid node inside a scope
     let res = scope(veilid_api.clone()).await;
@@ -119,14 +118,14 @@ pub fn update_callback(update: VeilidUpdate) {
         VeilidUpdate::Log(_veilid_log) => {}
         VeilidUpdate::AppMessage(veilid_app_message) => {
             let msg = String::from_utf8_lossy(veilid_app_message.message());
-            // println, not info!: no tracing subscriber is installed, and the
+            // println, not println!: no tracing subscriber is installed, and the
             // pedestrian needs to see driver messages
             println!("AppMessage received: {msg}");
         }
         VeilidUpdate::AppCall(_veilid_app_call) => {}
         VeilidUpdate::Attachment(_veilid_state_attachment) => {}
         Network(msg) => {
-            info!(
+            println!(
                 "Network: Node Ids: {}, Peers {}, bytes/sec [{} up] [{} down]",
                 if msg.node_ids.is_empty() {
                     "(none assigned)".to_string()
@@ -144,7 +143,7 @@ pub fn update_callback(update: VeilidUpdate) {
         }
         VeilidUpdate::Config(_veilid_state_config) => {}
         VeilidUpdate::RouteChange(veilid_route_change) => {
-            info!("{veilid_route_change:?}");
+            println!("{veilid_route_change:?}");
         }
         VeilidUpdate::ValueChange(_veilid_value_change) => {}
         VeilidUpdate::Shutdown => {}

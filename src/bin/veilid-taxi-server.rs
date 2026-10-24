@@ -1,20 +1,32 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
+use axum::{
+    extract::{
+        ws::{WebSocket, WebSocketUpgrade},
+        ConnectInfo,
+    },
+    response::IntoResponse,
+    routing::any,
+    Router,
+};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     routing::{get, post},
-    Json, Router,
+    Json,
 };
+use axum_extra::{headers, TypedHeader};
+
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use veilid_core::RoutingContext;
 
 use veilid_taxi::{
+    app::{P2PApp, P2PAppState},
     driver::{accept_pedestrian_ride_request, find_requests},
     pedestrian::{publish_request, PedestianRideRequest},
-    veilid::{app_config, update_callback, veilid_api_scope},
+    veilid::app_config,
 };
 
 #[derive(Parser, Debug)]
@@ -62,9 +74,10 @@ struct Location {
 type PedestrianRequests = HashMap<String, PedestianRideRequest>;
 
 #[derive(Clone)]
-struct AppState {
+struct WebAppState {
     rc: RoutingContext,
     pr: Arc<Mutex<PedestrianRequests>>,
+    p2p_app_state: P2PAppState,
 }
 
 type ApiError = (StatusCode, String);
@@ -75,7 +88,7 @@ fn internal(e: anyhow::Error) -> ApiError {
 
 /// POST /requests: publish a ride request as a pedestrian
 async fn create_request(
-    State(state): State<AppState>,
+    State(state): State<WebAppState>,
     Json(body): Json<CreateRideRequest>,
 ) -> Result<Json<CreatedRideRequest>, ApiError> {
     let published = publish_request(
@@ -97,7 +110,7 @@ async fn create_request(
 
 /// POST /requests/accept: accept a ride request as a driver and message the pedestrian
 async fn accept_ride_request(
-    State(state): State<AppState>,
+    State(state): State<WebAppState>,
     Json(body): Json<AcceptRideRequest>,
 ) -> Result<Json<AcceptedRideRequest>, ApiError> {
     let pr = state.pr.lock().await;
@@ -123,7 +136,7 @@ async fn accept_ride_request(
 
 /// GET /requests?latitude=..&longitude=..: list ride requests near a location
 async fn list_requests(
-    State(state): State<AppState>,
+    State(state): State<WebAppState>,
     Query(loc): Query<Location>,
 ) -> Result<Json<Vec<PedestianRideRequest>>, ApiError> {
     let requests = find_requests(&state.rc, loc.latitude, loc.longitude)
@@ -138,29 +151,71 @@ async fn list_requests(
     Ok(Json(requests))
 }
 
+// ---------------
+// WebSocket Logic
+// ---------------
+
+async fn ws_handler(
+    State(state): State<WebAppState>,
+    ws: WebSocketUpgrade,
+    user_agent: Option<TypedHeader<headers::UserAgent>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
+    let user_agent = if let Some(TypedHeader(user_agent)) = user_agent {
+        user_agent.to_string()
+    } else {
+        String::from("Unknown browser")
+    };
+    println!("`{user_agent}` at {addr} connected.");
+    ws.on_upgrade(move |socket| handle_socket(socket, addr, state.p2p_app_state))
+}
+
+/// Actual websocket statemachine (one will be spawned per connection)
+async fn handle_socket(mut socket: WebSocket, who: SocketAddr, p2p_app_state: P2PAppState) {
+    loop {
+        tokio::select! {
+            Ok(ride_request) = p2p_app_state.on_driver_ride_request.recv_async() => {
+                let json = serde_json::to_string(&ride_request).unwrap();
+                socket
+                    .send(axum::extract::ws::Message::Text(json.into()))
+                    .await.unwrap();
+            }
+            Ok(_data) = p2p_app_state.on_driver_ride_response.recv_async() => {
+
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let config = app_config("veilid-taxi-server");
 
-    let _ = veilid_api_scope(update_callback, config, |veilid_api| async move {
-        let app_state = AppState {
-            rc: veilid_api.routing_context()?,
-            pr: Arc::new(Mutex::new(PedestrianRequests::new())),
-        };
+    let mut app = P2PApp::new(config).await?;
+    let app_state = app.app_state.clone();
 
-        serve(app_state, &args.listen).await?;
-        Ok(())
-    })
-    .await;
+    let _ = app
+        .start(|veilid_api| async move {
+            let app_state = WebAppState {
+                rc: veilid_api.clone().routing_context()?,
+                pr: Arc::new(Mutex::new(PedestrianRequests::new())),
+                p2p_app_state: app_state,
+            };
+
+            serve(app_state, &args.listen).await?;
+            Ok(())
+        })
+        .await;
 
     Ok(())
 }
 
-async fn serve(state: AppState, addr: &str) -> anyhow::Result<()> {
+async fn serve(state: WebAppState, addr: &str) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/requests", get(list_requests).post(create_request))
         .route("/requests/accept", post(accept_ride_request))
+        .route("/ws", any(ws_handler))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

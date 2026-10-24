@@ -2,10 +2,7 @@ use anyhow::{Error, Result};
 use clap::Parser;
 
 use veilid_taxi::{
-    app::P2PApp,
-    driver::{accept_pedestrian_ride_request, find_requests},
-    pedestrian::publish_request,
-    veilid::{app_config, update_callback, veilid_api_scope},
+    app::P2PApp, driver::find_requests, pedestrian::publish_request, veilid::app_config,
 };
 
 #[derive(Parser, Debug)]
@@ -41,42 +38,35 @@ async fn main() -> Result<(), Error> {
 
     let config = app_config("veilid-taxi-cli");
 
-    // let app = P2PApp {};
+    let mut app = P2PApp::new(config).await?;
+    let _ = app
+        .start(|veilid_api| async move {
+            let rc = veilid_api.routing_context()?;
 
-    let _ = veilid_api_scope(update_callback, config, |veilid_api| async move {
-        let rc = veilid_api.routing_context()?;
-
-        if args.pedestrian {
-            let published_request = publish_request(&rc, args.latitude, args.longitude, 100)
-                .await
-                .unwrap();
-            println!("request published: {:?}", published_request);
-            println!("waiting for drivers, ctrl-c to quit");
-        }
-
-        if args.driver {
-            println!("finding pedestrian requests");
-            let pointers = find_requests(&rc, args.latitude, args.longitude).await?;
-
-            println!("{} requests found", pointers.len());
-
-            for (i, request) in pointers.iter().enumerate() {
-                println!("#{} {:?}", i + 1, request);
-
-                // if args.accept {
-                //     match accept_request(&rc, route.clone(), args.message.clone()).await {
-                //         Ok(()) => println!("#{} accepted, sent {:?}", i + 1, args.message),
-                //         Err(e) => println!("#{} accept failed: {e}", i + 1),
-                //     }
-                // }
+            if args.pedestrian {
+                let published_request = publish_request(&rc, args.latitude, args.longitude, 100)
+                    .await
+                    .unwrap();
+                println!("request published: {:?}", published_request);
+                println!("waiting for drivers, ctrl-c to quit");
             }
-        }
 
-        tokio::signal::ctrl_c().await?;
+            if args.driver {
+                println!("finding pedestrian requests");
+                let pointers = find_requests(&rc, args.latitude, args.longitude).await?;
 
-        Ok(())
-    })
-    .await;
+                println!("{} requests found", pointers.len());
+
+                for (i, request) in pointers.iter().enumerate() {
+                    println!("#{} {:?}", i + 1, request);
+                }
+            }
+
+            tokio::signal::ctrl_c().await?;
+
+            Ok(())
+        })
+        .await;
 
     Ok(())
 }
