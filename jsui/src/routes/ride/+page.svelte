@@ -21,6 +21,12 @@
 				max_price_cents: Math.round(maxPrice * 100)
 			});
 			created = [res, ...created];
+
+			console.log("~~~");
+			console.log(res);
+			console.log("~~~");
+
+
 		} catch (e) {
 			error = (e as Error).message;
 		} finally {

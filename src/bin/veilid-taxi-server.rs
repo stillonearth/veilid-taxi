@@ -172,11 +172,6 @@ async fn ws_handler(
 
 /// Actual websocket statemachine (one will be spawned per connection)
 async fn handle_socket(mut socket: WebSocket, who: SocketAddr, p2p_app_state: P2PAppState) {
-    socket
-        .send(axum::extract::ws::Message::Text("POCKEMON PICKACHU".into()))
-        .await
-        .unwrap();
-
     loop {
         tokio::select! {
             Ok(ride_request) = p2p_app_state.on_driver_ride_request.recv_async() => {
@@ -185,8 +180,11 @@ async fn handle_socket(mut socket: WebSocket, who: SocketAddr, p2p_app_state: P2
                     .send(axum::extract::ws::Message::Text(json.into()))
                     .await.unwrap();
             }
-            Ok(_data) = p2p_app_state.on_driver_ride_response.recv_async() => {
-
+            Ok(ride_response) = p2p_app_state.on_driver_ride_response.recv_async() => {
+                let json = serde_json::to_string(&ride_response).unwrap();
+                socket
+                    .send(axum::extract::ws::Message::Text(json.into()))
+                    .await.unwrap();
             }
         }
     }

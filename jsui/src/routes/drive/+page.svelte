@@ -132,9 +132,11 @@
 					<div class="actions">
 						<button
 							type="button"
-							disabled={request.expires_at <= now ||
-								accepting[key] === 'sending' ||
-								accepting[key] === 'sent'}
+							disabled={ false
+							// request.expires_at <= now ||
+							// 	accepting[key] === 'sending' ||
+							// 	accepting[key] === 'sent'
+							}
 							onclick={() => accept(key)}
 						>
 							{accepting[key] === 'sending'
