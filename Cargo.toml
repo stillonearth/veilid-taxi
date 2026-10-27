@@ -31,11 +31,6 @@ sha_256 = "1.0"
 tokio = { version = "1.54", features = ["full"] }
 tower-http = { version = "0.7", features = ["fs", "trace"] }
 tracing = "0.1.44"
-ferroui = "0.4.0-preview.1"
-ferroui-base = "=0.4.0-preview.1"
-ferroui-controls = "=0.4.0-preview.1"
-ferroui-desktop = "=0.4.0-preview.1"
-ferroui-themes-fluent = "=0.4.0-preview.1"
 
 [profile.test]
 opt-level = 2

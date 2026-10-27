@@ -144,13 +144,19 @@ impl P2PApp {
         Ok(true)
     }
 
-    pub async fn start<'a, F: Future<Output = Result<T, Box<dyn std::error::Error>>>, T>(
+    pub async fn start<
+        'a,
+        F: Future<Output = Result<T, Box<dyn std::error::Error + Send + Sync>>>,
+        T,
+    >(
         &mut self,
-        scope: impl FnOnce(VeilidAPI) -> F + Send + Sync + 'a,
-    ) -> Result<T, Box<dyn std::error::Error>> {
+        scope: impl FnOnce(VeilidAPI) -> F + Sync + 'a,
+    ) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
+        println!("attempt to spawn");
+
         let mut app = self.clone();
 
-        let join = spawn("network_loop", async move { app.network_loop().await });
+        let handle = spawn("network_loop", async move { app.network_loop().await });
 
         // Attach to the network
         self.veilid_api.attach().await?;
@@ -164,11 +170,10 @@ impl P2PApp {
 
         // Operate the Veilid node inside a scope
         let res = scope(self.veilid_api.clone()).await;
+        handle.abort().await;
 
         // Clean shutdown
         self.veilid_api.clone().shutdown().await;
-
-        let _ = join.await?;
 
         // Return result
         res

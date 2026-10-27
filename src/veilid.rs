@@ -84,11 +84,11 @@ pub async fn wait_for_public_internet_ready(api: &VeilidAPI) -> Result<(), Error
     Ok(())
 }
 
-pub async fn veilid_api_scope<'a, F: Future<Output = Result<T, Box<dyn std::error::Error>>>, T>(
+pub async fn veilid_api_scope<'a, F: Future<Output = Result<T, Box<dyn std::error::Error + Send + Sync>>>, T>(
     update_callback: impl Fn(VeilidUpdate) + Send + Sync + 'static,
     veilid_config: VeilidConfig,
     scope: impl FnOnce(VeilidAPI) -> F + Send + Sync + 'a,
-) -> Result<T, Box<dyn std::error::Error>> {
+) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
     // Startup Veilid node
     // Note: future is boxed due to its size and our aggressive clippy lints
     let veilid_api = Box::pin(api_startup(Arc::new(update_callback), veilid_config)).await?;

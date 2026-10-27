@@ -19,7 +19,7 @@ pub async fn find_requests(
     rc: &RoutingContext,
     lat: f64,
     lng: f64,
-) -> Result<Vec<(PedestianRideRequest)>> {
+) -> Result<Vec<PedestianRideRequest >> {
     let driver_cell = cell_for(lat, lng)?;
     let neighbour_cells = scan_cells(driver_cell);
 
