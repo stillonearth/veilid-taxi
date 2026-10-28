@@ -1,10 +1,10 @@
 [package]
 edition = "2021"
-name = "veilid-taxi"
+name = "ztaxi"
 version = "0.0.1"
 license = "MIT OR Apache-2.0"
 description = "Decentralized Taxi over Veilid Network"
-keywords = ["veilid", "news",]
+keywords = ["taxi", "veilid", "p2p"]
 repository = "https://github.com/stillonearth/veilid-taxi"
 rust-version = "1.83.0"
 

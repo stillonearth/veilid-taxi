@@ -1,14 +1,7 @@
-# Veilid-Taxi
+# ZTAXI
 
 Veilid-Taxi is decentralized alternative to Yandex Taxi because of recent Ukraine drone attacks brought data centers down.
 
-# Протокол Публикации
+# TODO
 
-1. Пешеход публикует запрос на поездку в DHT, где реестр поездки имеет приватный ключ вычислющийся из координат пешехода, квантованного времени и максимальной цены
-2. Пешеходы могут перетирать записи друг друга, но не более (THREAT RISK)
-3. Пешеход публикует свой адрес в Veilid для p2p установления связи
-
-#  Протокол принятия
-
-1. Водитель может вычислить тот-же самый ключ, получить список заявок
-2. Водитель Нажимает на кнопку Accept Request и начинается протокол одобрения заявки от пешехода
+Rethink whethe commincation should be message or call.

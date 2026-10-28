@@ -2,7 +2,7 @@ use anyhow::Result;
 use flume::{unbounded, Receiver, Sender};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, sync::Arc};
-use tracing::info;
+use tracing::{error, info};
 use veilid_core::tools::spawn;
 use veilid_core::VeilidUpdate::Network;
 use veilid_core::{api_startup, VeilidAPI, VeilidConfig, VeilidUpdate};
@@ -48,7 +48,7 @@ impl P2PAppState {
 
 #[derive(Clone)]
 pub struct P2PApp {
-    veilid_api: VeilidAPI,
+    pub veilid_api: VeilidAPI,
     on_veilid_update: Receiver<VeilidUpdate>,
     pub app_state: P2PAppState,
 }
@@ -63,7 +63,7 @@ impl P2PApp {
         let update_callback = Arc::new(move |change: veilid_core::VeilidUpdate| {
             if let Err(e) = veilid_update_sender.send(change.clone()) {
                 let change = e.into_inner();
-                info!("error sending veilid update callback: {:?}", change);
+                error!("error sending veilid update callback: {:?}", change);
             }
 
             match change {
@@ -144,21 +144,7 @@ impl P2PApp {
         Ok(true)
     }
 
-    pub async fn start<
-        'a,
-        F: Future<Output = Result<T, Box<dyn std::error::Error + Send + Sync>>>,
-        T,
-    >(
-        &mut self,
-        scope: impl FnOnce(VeilidAPI) -> F + Sync + 'a,
-    ) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
-        println!("attempt to spawn");
-
-        let mut app = self.clone();
-
-        let handle = spawn("network_loop", async move { app.network_loop().await });
-
-        // Attach to the network
+    pub async fn connect_to_network(&mut self) -> Result<()> {
         self.veilid_api.attach().await?;
 
         wait_for_public_internet_ready(&self.veilid_api).await?;
@@ -168,14 +154,25 @@ impl P2PApp {
         wait_for_attached(&self.veilid_api).await?;
         info!("veilid attached");
 
-        // Operate the Veilid node inside a scope
+        Ok(())
+    }
+
+    pub async fn start<
+        'a,
+        F: Future<Output = Result<T, Box<dyn std::error::Error + Send + Sync>>>,
+        T,
+    >(
+        &mut self,
+        scope: impl FnOnce(VeilidAPI) -> F + Sync + 'a,
+    ) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
+        self.connect_to_network().await?;
+
+        let mut app = self.clone();
+        let handle = spawn("network_loop", async move { app.network_loop().await });
         let res = scope(self.veilid_api.clone()).await;
         handle.abort().await;
-
-        // Clean shutdown
         self.veilid_api.clone().shutdown().await;
 
-        // Return result
         res
     }
 }

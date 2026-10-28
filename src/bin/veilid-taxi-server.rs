@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use veilid_core::RoutingContext;
 
-use veilid_taxi::{
+use ztaxi::{
     app::{P2PApp, P2PAppState},
     driver::{accept_pedestrian_ride_request, find_requests},
     pedestrian::{publish_request, PedestianRideRequest},
@@ -181,6 +181,9 @@ async fn handle_socket(mut socket: WebSocket, who: SocketAddr, p2p_app_state: P2
                     .await.unwrap();
             }
             Ok(ride_response) = p2p_app_state.on_driver_ride_response.recv_async() => {
+
+                println!("got pedestrian response");
+
                 let json = serde_json::to_string(&ride_response).unwrap();
                 socket
                     .send(axum::extract::ws::Message::Text(json.into()))
@@ -193,7 +196,7 @@ async fn handle_socket(mut socket: WebSocket, who: SocketAddr, p2p_app_state: P2
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-    let config = app_config("veilid-taxi-server");
+    let config = app_config("veilid-taxi-cli", None);
 
     let mut app = P2PApp::new(config).await?;
     let app_state = app.app_state.clone();

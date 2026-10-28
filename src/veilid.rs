@@ -1,5 +1,7 @@
 use anyhow::{Error, Result};
+use tracing::info;
 
+use std::path::PathBuf;
 use std::time::Duration;
 use std::{future::Future, sync::Arc};
 use tokio::time::sleep;
@@ -12,13 +14,21 @@ use veilid_core::{
 
 /// Veilid config with storage next to the executable, under `.veilid/<name>`,
 /// so different binaries don't share (and lock) the same stores.
-pub fn app_config(name: &str) -> VeilidConfig {
-    let exe_dir = std::env::current_exe()
-        .map(|x| x.parent().map(|p| p.to_owned()))
-        .ok()
-        .flatten()
-        .unwrap_or(".".into());
+pub fn app_config(name: &str, exe_dir: Option<PathBuf>) -> VeilidConfig {
+    let exe_dir = if exe_dir.is_none() {
+        std::env::current_exe()
+            .map(|x| x.parent().map(|p| p.to_owned()))
+            .ok()
+            .flatten()
+            .unwrap_or(".".into())
+    } else {
+        PathBuf::from("/home/cwiz")
+    };
     let store_dir = exe_dir.join(".veilid").join(name);
+    let dir = store_dir
+        .join("protected_store")
+        .to_string_lossy()
+        .to_string();
 
     VeilidConfig {
         program_name: name.into(),
@@ -26,10 +36,7 @@ pub fn app_config(name: &str) -> VeilidConfig {
 
         protected_store: VeilidConfigProtectedStore {
             always_use_insecure_storage: true,
-            directory: store_dir
-                .join("protected_store")
-                .to_string_lossy()
-                .to_string(),
+            directory: dir,
             ..Default::default()
         },
         table_store: VeilidConfigTableStore {
@@ -84,7 +91,11 @@ pub async fn wait_for_public_internet_ready(api: &VeilidAPI) -> Result<(), Error
     Ok(())
 }
 
-pub async fn veilid_api_scope<'a, F: Future<Output = Result<T, Box<dyn std::error::Error + Send + Sync>>>, T>(
+pub async fn veilid_api_scope<
+    'a,
+    F: Future<Output = Result<T, Box<dyn std::error::Error + Send + Sync>>>,
+    T,
+>(
     update_callback: impl Fn(VeilidUpdate) + Send + Sync + 'static,
     veilid_config: VeilidConfig,
     scope: impl FnOnce(VeilidAPI) -> F + Send + Sync + 'a,
@@ -118,14 +129,12 @@ pub fn update_callback(update: VeilidUpdate) {
         VeilidUpdate::Log(_veilid_log) => {}
         VeilidUpdate::AppMessage(veilid_app_message) => {
             let msg = String::from_utf8_lossy(veilid_app_message.message());
-            // println, not println!: no tracing subscriber is installed, and the
-            // pedestrian needs to see driver messages
-            println!("AppMessage received: {msg}");
+            info!("AppMessage received: {msg}");
         }
         VeilidUpdate::AppCall(_veilid_app_call) => {}
         VeilidUpdate::Attachment(_veilid_state_attachment) => {}
         Network(msg) => {
-            println!(
+            info!(
                 "Network: Node Ids: {}, Peers {}, bytes/sec [{} up] [{} down]",
                 if msg.node_ids.is_empty() {
                     "(none assigned)".to_string()

@@ -1,9 +1,7 @@
 use anyhow::{Error, Result};
 use clap::Parser;
 
-use veilid_taxi::{
-    app::P2PApp, driver::find_requests, pedestrian::publish_request, veilid::app_config,
-};
+use ztaxi::{app::P2PApp, driver::find_requests, pedestrian::publish_request, veilid::app_config};
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -36,7 +34,7 @@ async fn main() -> Result<(), Error> {
         return Ok(());
     }
 
-    let config = app_config("veilid-taxi-cli");
+    let config = app_config("veilid-taxi-cli", None);
 
     let mut app = P2PApp::new(config).await?;
     let _ = app
