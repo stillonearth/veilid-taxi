@@ -13,13 +13,14 @@ pub struct DriverRideRequest {
     pub pedestrian_ride_request: PedestianRideRequest,
     pub message: String,
     pub driver_route: Vec<u8>,
+    pub driver_wallet: String,
 }
 
 pub async fn find_requests(
     rc: &RoutingContext,
     lat: f64,
     lng: f64,
-) -> Result<Vec<PedestianRideRequest >> {
+) -> Result<Vec<PedestianRideRequest>> {
     let driver_cell = cell_for(lat, lng)?;
     let neighbour_cells = scan_cells(driver_cell);
 
@@ -101,12 +102,13 @@ async fn read_request_values(
     Ok((ride_request, route.data().to_vec()))
 }
 
-/// Accept a ride request as a driver: send `message` to the pedestrian's private route.
+/// Accept a ride request as a driver: send `message` and `driver_wallet` to the pedestrian's private route.
 pub async fn accept_pedestrian_ride_request(
     rc: &RoutingContext,
     route_blob: Vec<u8>,
     pedestrian_ride_request: PedestianRideRequest,
     message: String,
+    driver_wallet: String,
 ) -> Result<DriverRideRequest> {
     let api = rc.api();
     let pedestrian_route_id = api.import_remote_private_route(route_blob)?;
@@ -116,6 +118,7 @@ pub async fn accept_pedestrian_ride_request(
         message: message.clone(),
         driver_route: driver_route.blob,
         pedestrian_ride_request,
+        driver_wallet: driver_wallet.clone(),
     };
 
     let message = P2PTaxiMessage::DriverRideRequest(driver_ride_request.clone());

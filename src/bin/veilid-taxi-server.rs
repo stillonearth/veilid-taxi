@@ -56,6 +56,7 @@ struct CreatedRideRequest {
 struct AcceptRideRequest {
     request_key: String,
     message: String,
+    driver_wallet: String,
 }
 
 #[derive(Serialize)]
@@ -63,6 +64,7 @@ struct AcceptedRideRequest {
     request_key: String,
     driver_route: Vec<u8>,
     pedestrian_route: Vec<u8>,
+    driver_wallet: String,
 }
 
 #[derive(Deserialize)]
@@ -123,6 +125,7 @@ async fn accept_ride_request(
         pedesrtian_ride_request.route_blob.clone(),
         pedesrtian_ride_request.clone(),
         body.message,
+        body.driver_wallet,
     )
     .await
     .map_err(internal)?;
@@ -131,6 +134,7 @@ async fn accept_ride_request(
         request_key: pedesrtian_ride_request.request_key.clone(),
         pedestrian_route: pedesrtian_ride_request.route_blob.clone(),
         driver_route: driver_ride_request.driver_route.clone(),
+        driver_wallet: driver_ride_request.driver_wallet.clone(),
     }))
 }
 
