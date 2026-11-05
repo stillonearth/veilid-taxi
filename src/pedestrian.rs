@@ -156,11 +156,37 @@ pub enum PedestrianDecision {
     No,
 }
 
+/// The escrow deposit a pedestrian made for the driver before accepting an
+/// offer, so the driver can find the funds on chain without being told the
+/// pedestrian's wallet out of band.
+///
+/// `amount_stroops` is a decimal string: the token amount is an `i128`, which
+/// does not survive a round trip through a JavaScript number.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct RideEscrow {
+    /// Escrow contract holding the funds.
+    pub contract_id: String,
+    /// Token contract the escrow holds (USDC on testnet).
+    pub token_contract_id: String,
+    /// Account that deposited, and whose auth the escrow recorded.
+    pub passenger_wallet: String,
+    /// Account the deposit is earmarked for.
+    pub driver_wallet: String,
+    /// Deposited amount in the token's smallest unit, as a decimal string.
+    pub amount_stroops: String,
+    /// Hash of the `deposit` transaction, for the driver to verify.
+    pub tx_hash: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriverRideResponse {
     pub pedestrian_ride_request: PedestianRideRequest,
     pub decision: PedestrianDecision,
     pub driver_route: Vec<u8>,
+    /// Set when the pedestrian accepted and funded the ride escrow.
+    /// Absent on a decline, and on an accept whose deposit is not on chain.
+    #[serde(default)]
+    pub escrow: Option<RideEscrow>,
 }
 
 pub async fn respond_to_driver_ride_request(
@@ -168,6 +194,7 @@ pub async fn respond_to_driver_ride_request(
     driver_route: Vec<u8>,
     pedestrian_ride_request: PedestianRideRequest,
     decision: PedestrianDecision,
+    escrow: Option<RideEscrow>,
 ) -> Result<DriverRideResponse> {
     let api = rc.api();
     let driver_route_id = api.import_remote_private_route(driver_route.clone())?;
@@ -176,6 +203,7 @@ pub async fn respond_to_driver_ride_request(
         decision,
         driver_route: driver_route.clone(),
         pedestrian_ride_request,
+        escrow,
     };
     let message = P2PTaxiMessage::DriverRideResponse(driver_ride_response.clone());
     let serialized_message = serde_json::to_vec(&message)?;
