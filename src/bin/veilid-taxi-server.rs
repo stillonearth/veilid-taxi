@@ -179,6 +179,9 @@ async fn handle_socket(mut socket: WebSocket, who: SocketAddr, p2p_app_state: P2
     loop {
         tokio::select! {
             Ok(ride_request) = p2p_app_state.on_driver_ride_request.recv_async() => {
+
+                println!("got pedestrian request");
+
                 let json = serde_json::to_string(&ride_request).unwrap();
                 socket
                     .send(axum::extract::ws::Message::Text(json.into()))
